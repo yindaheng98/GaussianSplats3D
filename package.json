@@ -56,6 +56,7 @@
         "babel-loader": "9.1.3",
         "@rollup/plugin-terser": "0.4.4",
         "@rollup/pluginutils": "5.0.5",
+        "cags.js": "^1.0.0",
         "eslint": "8.47.0",
         "eslint-config-google": "0.14.0",
         "file-loader": "6.2.0",
