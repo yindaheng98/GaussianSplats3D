@@ -3,6 +3,7 @@ import { OrbitControls } from './OrbitControls.js';
 import { PlyLoader } from './loaders/ply/PlyLoader.js';
 import { SplatLoader } from './loaders/splat/SplatLoader.js';
 import { KSplatLoader } from './loaders/ksplat/KSplatLoader.js';
+import { CAGSLoader } from './loaders/cags/CAGSLoader.js';
 import { SpzLoader } from './loaders/spz/SpzLoader.js';
 import { sceneFormatFromPath } from './loaders/Utils.js';
 import { LoadingSpinner } from './ui/LoadingSpinner.js';
@@ -1061,7 +1062,9 @@ export class Viewer {
     downloadSplatSceneToSplatBuffer(path, splatAlphaRemovalThreshold = 1, onProgress = undefined,
                                     progressiveBuild = false, onSectionBuilt = undefined, format, headers) {
         try {
-            if (format === SceneFormat.Splat || format === SceneFormat.KSplat || format === SceneFormat.Ply) {
+            if (
+                format === SceneFormat.Splat || format === SceneFormat.KSplat || format === SceneFormat.Ply ||
+                format === SceneFormat.CAGS) {
                 const optimizeSplatData = progressiveBuild ? false : this.optimizeSplatData;
                 if (format === SceneFormat.Splat) {
                     return SplatLoader.loadFromURL(path, onProgress, progressiveBuild, onSectionBuilt, splatAlphaRemovalThreshold,
@@ -1071,6 +1074,8 @@ export class Viewer {
                 } else if (format === SceneFormat.Ply) {
                     return PlyLoader.loadFromURL(path, onProgress, progressiveBuild, onSectionBuilt, splatAlphaRemovalThreshold,
                                                  this.inMemoryCompressionLevel, optimizeSplatData, this.sphericalHarmonicsDegree, headers);
+                } else if (format === SceneFormat.CAGS) {
+                    return CAGSLoader.loadFromURL(path, onProgress, progressiveBuild, onSectionBuilt, headers);
                 }
             } else if (format === SceneFormat.Spz) {
                 return SpzLoader.loadFromURL(path, onProgress, splatAlphaRemovalThreshold, this.inMemoryCompressionLevel,
