@@ -2,7 +2,8 @@ import { base64 } from "./util/import-base-64.js";
 import terser from '@rollup/plugin-terser';
 
 const globals = {
-    'three': 'THREE'
+    'three': 'THREE',
+    'cags.js': 'CAGS'
 };
 
 export default [
@@ -10,7 +11,8 @@ export default [
         input: './src/index.js',
         treeshake: false,
         external: [
-            'three'
+            'three',
+            'cags.js'
         ],
         output: [
             {
@@ -39,7 +41,8 @@ export default [
         input: './src/index.js',
         treeshake: false,
         external: [
-            'three'
+            'three',
+            'cags.js'
         ],
         output: [
             {
@@ -57,7 +60,7 @@ export default [
             }
         ],
         plugins: [
-            base64({ 
+            base64({
                 include: "**/*.wasm",
                 sourceMap: false
             })

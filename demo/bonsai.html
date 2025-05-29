@@ -7,14 +7,12 @@
   <meta http-equiv="x-ua-compatible" content="ie=edge">
   <title>3D Gaussian Splat Demo - Truck</title>
   <script type="text/javascript" src="js/util.js"></script>
-  <script type="importmap">
-    {
-        "imports": {
-            "three": "./lib/three.module.js",
-            "@mkkellogg/gaussian-splats-3d": "./lib/gaussian-splats-3d.module.js"
-        }
-    }
-  </script>
+  <script type="text/javascript" src="./lib/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.22.0/dist/tf.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-wasm/dist/tf-backend-wasm.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+  <script type="text/javascript" src="./lib/cags.umd.js"></script>
+  <script type="text/javascript" src="./lib/gaussian-splats-3d.umd.cjs"></script>
   <style>
 
     body {
@@ -28,14 +26,12 @@
 </head>
 
 <body>
-  <script type="module">
-    import * as GaussianSplats3D from '@mkkellogg/gaussian-splats-3d';
-    import * as THREE from 'three';
-
+  <script type="text/javascript">
     const urlParams = new URLSearchParams(window.location.search);
     const mode = parseInt(urlParams.get('mode')) || 0;
 
-    const viewer = new GaussianSplats3D.Viewer({
+    const { Viewer } = window['Gaussian Splats 3D'];
+    const viewer = new Viewer({
         'cameraUp': [0.01933, -0.75830, -0.65161],
         'initialCameraPosition': [1.54163, 2.68515, -6.37228],
         'initialCameraLookAt': [0.45622, 1.95338, 1.51278],
