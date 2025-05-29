@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CAGS.js Browser Example - UMD Version</title>
+    
+    <!-- 使用UMD版本避免ES模块导入问题 -->
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.22.0/dist/tf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-wasm/dist/tf-backend-wasm.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+    <script src="./cags.umd.js"></script>
+    
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .code-block {
+            background-color: #f5f5f5;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 10px 0;
+            overflow-x: auto;
+        }
+
+        .result {
+            background-color: #e8f5e8;
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+
+        .error {
+            background-color: #ffe8e8;
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+
+        .demo-section {
+            border: 1px solid #ddd;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>CAGS.js 浏览器解码示例</h1>
+    
+    <div class="demo-section">
+        <h2>解码状态</h2>
+        <div id="status" class="result">准备开始解码...</div>
+        <div id="progress" class="code-block">等待开始...</div>
+    </div>
+
+    <div class="demo-section">
+        <h2>解码结果</h2>
+        <div id="results" class="result">
+            <p>解码完成后，结果将显示在这里...</p>
+        </div>
+    </div>
+
+    <div class="demo-section">
+        <h2>样本数据</h2>
+        <div id="sample-data" class="code-block">
+            <p>样本数据将在解码完成后显示...</p>
+        </div>
+    </div>
+
+    <div class="demo-section">
+        <h2>控制台日志</h2>
+        <p>详细的解码过程请查看浏览器开发者工具的控制台。</p>
+        <button onclick="location.reload()">重新解码</button>
+    </div>
+
+    <script>
+        // 等待所有库加载完成
+        document.addEventListener('DOMContentLoaded', async () => {
+            // 设置TensorFlow.js后端
+            await tf.setBackend('wasm');
+            
+            // 使用全局变量访问CAGS
+            const { DeQuantizer, dispose } = window.CAGS;
+
+            // 属性列表配置，与example.ts保持一致
+            const attributes_list = {
+                scaling: 6,
+                rotation_re: 4,
+                rotation_im: 6,
+                opacity: 5,
+                features_dc: 6,
+                features_rest_0: 5,
+                features_rest_1: 0,
+                features_rest_2: 0,
+            };
+
+            // UI更新辅助函数
+            function updateStatus(message, isError = false) {
+                const statusEl = document.getElementById('status');
+                if (statusEl) {
+                    statusEl.textContent = message;
+                    statusEl.className = isError ? 'error' : 'result';
+                }
+                console.log(message);
+            }
+
+            function updateProgress(message) {
+                const progressEl = document.getElementById('progress');
+                if (progressEl) {
+                    progressEl.textContent = message;
+                }
+                console.log(message);
+            }
+
+            function updateResults(html) {
+                const resultsEl = document.getElementById('results');
+                if (resultsEl) {
+                    resultsEl.innerHTML = html;
+                }
+            }
+
+            function updateSampleData(html) {
+                const sampleEl = document.getElementById('sample-data');
+                if (sampleEl) {
+                    sampleEl.innerHTML = html;
+                }
+            }
+
+            // 从URL获取文件数据的辅助函数
+            async function fetchFileAsArrayBuffer(url) {
+                try {
+                    const response = await fetch(url);
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    return await response.arrayBuffer();
+                } catch (error) {
+                    console.error(`Failed to fetch ${url}:`, error);
+                    throw error;
+                }
+            }
+
+            // 加载codebook数据
+            async function loadCodebook(dequantizer) {
+                updateProgress("开始加载 Codebook...");
+
+                // 加载基础层codebook
+                updateProgress("加载基础层 codebook...");
+                const baseCodebookData = await fetchFileAsArrayBuffer('./assets/data/flame_steak/point_cloud.codebook.npz');
+                await dequantizer.loadBaseLayerCodebook(new Uint8Array(baseCodebookData));
+
+                // 加载增强层codebook
+                let totalLayers = 0;
+                for (const attr in attributes_list) {
+                    totalLayers += attributes_list[attr];
+                }
+
+                let loadedLayers = 0;
+                for (const attr in attributes_list) {
+                    for (let i = 1; i <= attributes_list[attr]; i++) {
+                        updateProgress(`加载增强层 codebook: ${attr} 层 ${i}/${attributes_list[attr]} (总进度: ${loadedLayers + 1}/${totalLayers})`);
+                        const url = `./assets/data/flame_steak/point_cloud.layer.${attr}.${i}.codebook.npz`;
+                        const data = await fetchFileAsArrayBuffer(url);
+                        await dequantizer.loadEnhancementLayerCodebook(attr, new Uint8Array(data));
+                        loadedLayers++;
+                    }
+                }
+                updateProgress("Codebook 加载完成");
+            }
+
+            // 加载codes数据
+            async function loadCodes(dequantizer) {
+                updateProgress("开始加载 Codes...");
+
+                // 加载基础层codes
+                updateProgress("加载基础层 codes...");
+                const baseCodesData = await fetchFileAsArrayBuffer('./assets/data/flame_steak/point_cloud.drc');
+                await dequantizer.loadBaseLayerCodes(new Uint8Array(baseCodesData));
+
+                // 加载增强层codes
+                let totalLayers = 0;
+                for (const attr in attributes_list) {
+                    totalLayers += attributes_list[attr];
+                }
+
+                let loadedLayers = 0;
+                for (const attr in attributes_list) {
+                    for (let i = 1; i <= attributes_list[attr]; i++) {
+                        updateProgress(`加载增强层 codes: ${attr} 层 ${i}/${attributes_list[attr]} (总进度: ${loadedLayers + 1}/${totalLayers})`);
+                        const url = `./assets/data/flame_steak/point_cloud.layer.${attr}.${i}.codes.npz`;
+                        const data = await fetchFileAsArrayBuffer(url);
+                        await dequantizer.loadEnhancementLayerCodes(attr, new Uint8Array(data));
+                        loadedLayers++;
+                    }
+                }
+                updateProgress("Codes 加载完成");
+            }
+
+            // 主要的解码和保存函数
+            async function decodeAndLog() {
+                updateStatus("开始CAGS.js浏览器解码示例");
+
+                try {
+                    const dequantizer = new DeQuantizer();
+
+                    // 加载数据
+                    await loadCodebook(dequantizer);
+                    await loadCodes(dequantizer);
+
+                    // 执行解码 - 添加计时
+                    updateProgress("开始解码...");
+                    updateStatus("正在解码点云数据...");
+                    
+                    const attributes = await dequantizer.dequantize();
+                    
+                    const startTime = performance.now();
+                    await dequantizer.dequantize();
+                    const endTime = performance.now();
+                    const dequantizeTime = endTime - startTime;
+
+                    // 获取位置数据
+                    const positions = dequantizer.getPosition();
+                    const numPoints = dequantizer.getnPoints();
+
+                    // 输出解码结果
+                    updateStatus("解码完成！");
+                    updateProgress(`解码完成，耗时: ${dequantizeTime.toFixed(2)} 毫秒`);
+
+                    const resultsHtml = `
+                        <h3>解码统计信息</h3>
+                        <p><strong>解码耗时:</strong> ${dequantizeTime.toFixed(2)} 毫秒 (${(dequantizeTime / 1000).toFixed(3)} 秒)</p>
+                        <p><strong>点云数量:</strong> ${numPoints.toLocaleString()}</p>
+                        <p><strong>位置数据形状:</strong> [${positions.length}]</p>
+                        <p><strong>缩放数据形状:</strong> [${attributes.scale.shape.join(', ')}]</p>
+                        <p><strong>旋转数据形状:</strong> [${attributes.rotation.shape.join(', ')}]</p>
+                        <p><strong>透明度数据形状:</strong> [${attributes.opacity.shape.join(', ')}]</p>
+                        <p><strong>特征DC数据形状:</strong> [${attributes.features_dc.shape.join(', ')}]</p>
+                        <p><strong>特征REST数据形状:</strong> [${attributes.features_rest.shape.join(', ')}]</p>
+                    `;
+                    updateResults(resultsHtml);
+
+                    // 输出一些样本数据
+                    updateProgress("正在提取样本数据...");
+                    const positionData = positions;
+                    const scaleData = await attributes.scale.data();
+                    const rotationData = await attributes.rotation.data();
+                    const opacityData = await attributes.opacity.data();
+
+                    const sampleHtml = `
+                        <h3>前3个点的数据样本</h3>
+                        <p><strong>位置 (x,y,z):</strong></p>
+                        <pre>${Array.from(positionData.slice(0, 9)).map((v, i) => 
+                            i % 3 === 0 ? `\n点${Math.floor(i / 3) + 1}: [${v.toFixed(6)}, ` : 
+                            i % 3 === 1 ? `${v.toFixed(6)}, ` : 
+                            `${v.toFixed(6)}]`
+                        ).join('')}</pre>
+                        
+                        <p><strong>缩放 (sx,sy,sz):</strong></p>
+                        <pre>${Array.from(scaleData.slice(0, 9)).map((v, i) => 
+                            i % 3 === 0 ? `\n点${Math.floor(i / 3) + 1}: [${v.toFixed(6)}, ` : 
+                            i % 3 === 1 ? `${v.toFixed(6)}, ` : 
+                            `${v.toFixed(6)}]`
+                        ).join('')}</pre>
+                        
+                        <p><strong>旋转四元数 (w,x,y,z):</strong></p>
+                        <pre>${Array.from(rotationData.slice(0, 12)).map((v, i) => 
+                            i % 4 === 0 ? `\n点${Math.floor(i / 4) + 1}: [${v.toFixed(6)}, ` : 
+                            i % 4 === 1 || i % 4 === 2 ? `${v.toFixed(6)}, ` : 
+                            `${v.toFixed(6)}]`
+                        ).join('')}</pre>
+                        
+                        <p><strong>透明度:</strong></p>
+                        <pre>${Array.from(opacityData.slice(0, 3)).map((v, i) => 
+                            `点${i + 1}: ${v.toFixed(6)}`
+                        ).join('\n')}</pre>
+                    `;
+                    updateSampleData(sampleHtml);
+
+                    // 内存使用情况
+                    const memInfo = tf.memory();
+                    updateProgress(`解码完成！内存使用: ${memInfo.numTensors} 个张量, ${(memInfo.numBytes / 1024 / 1024).toFixed(2)} MB`);
+
+                    // 控制台输出详细信息
+                    console.log("=== 解码完成 ===");
+                    console.log(`解码耗时: ${dequantizeTime.toFixed(2)} 毫秒 (${(dequantizeTime / 1000).toFixed(3)} 秒)`);
+                    console.log(`点云数量: ${numPoints}`);
+                    console.log(`位置数据形状: [${positions.shape}]`);
+                    console.log(`缩放数据形状: [${attributes.scale.shape}]`);
+                    console.log(`旋转数据形状: [${attributes.rotation.shape}]`);
+                    console.log(`透明度数据形状: [${attributes.opacity.shape}]`);
+                    console.log(`特征DC数据形状: [${attributes.features_dc.shape}]`);
+                    console.log(`特征REST数据形状: [${attributes.features_rest.shape}]`);
+                    console.log("=== 样本数据 ===");
+                    console.log("前3个点的位置:", Array.from(positionData.slice(0, 9)));
+                    console.log("前3个点的缩放:", Array.from(scaleData.slice(0, 9)));
+                    console.log("前3个点的旋转:", Array.from(rotationData.slice(0, 12)));
+                    console.log(`内存使用: ${memInfo.numTensors} 个张量, ${(memInfo.numBytes / 1024 / 1024).toFixed(2)} MB`);
+
+                    // 清理资源
+                    dequantizer.dispose();
+                    dispose(attributes);
+                    console.log("=== 资源清理完成 ===");
+
+                } catch (error) {
+                    console.error("解码过程中发生错误:", error);
+                    updateStatus(`解码失败: ${error.message}`, true);
+                    updateProgress(`错误: ${error.message}`);
+                }
+            }
+
+            // 开始解码
+            console.log("页面加载完成，开始解码...");
+            decodeAndLog();
+        });
+    </script>
+
+</body>
+
+</html>
