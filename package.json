@@ -12,10 +12,10 @@
     "license": "MIT",
     "type": "module",
     "scripts": {
-        "build-demo": "mkdir -p ./build/demo && cp -r ./demo ./build/ && cp ./node_modules/three/build/* ./build/demo/lib/ && cp ./node_modules/cags.js/dist/browser/* ./build/demo/",
+        "build-demo": "mkdir -p ./build/demo && cp -r ./demo ./build/ && cp ./node_modules/three/build/* ./build/demo/lib/ && cp -r ./node_modules/cags.js/dist/browser/* ./build/demo/",
         "build-library": "npx rollup -c && mkdir -p ./build/demo/lib && cp ./build/gaussian-splats-3d* ./build/demo/lib/",
         "build": "npm run build-library && npm run build-demo",
-        "build-demo-windows": "(if not exist \".\\build\\demo\" mkdir .\\build\\demo) && xcopy /E .\\demo .\\build\\demo && xcopy .\\node_modules\\three\\build\\* .\\build\\demo\\lib\\ && xcopy .\\node_modules\\cags.js\\dist\\browser\\* .\\build\\demo\\",
+        "build-demo-windows": "(if not exist \".\\build\\demo\" mkdir .\\build\\demo) && xcopy /E .\\demo .\\build\\demo && xcopy .\\node_modules\\three\\build\\* .\\build\\demo\\lib\\ && xcopy /e .\\node_modules\\cags.js\\dist\\browser\\* .\\build\\demo\\",
         "build-library-windows": "npx rollup -c && (if not exist \".\\build\\demo\\lib\" mkdir .\\build\\demo\\lib) && copy .\\build\\gaussian-splats-3d* .\\build\\demo\\lib\\",
         "build-windows": "npm run build-library-windows && npm run build-demo-windows",
         "watch": "npx npm-watch ",
@@ -68,7 +68,7 @@
         "url-loader": "4.1.1"
     },
     "peerDependencies": {
-        "cags.js": "^1.4.3",
+        "cags.js": "^1.4.4",
         "three": ">=0.160.0"
     },
     "files": [
